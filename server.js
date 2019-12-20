@@ -27,14 +27,90 @@ app.use(bodyParser.urlencoded({
 }));
 app.use(bodyParser.json());
 
+// post routes
+
+app.post('/module', (req, res) => {
+	let moduleName = req.body.module;
+	let moduleID;
+	// let settingName = req.body.settings.name
+	// let settingType = req.body.settings.type
+	// let settingDescription = req.body.settings.description
+
+
+	// if (req.body.description === undefined || req.body.start_date === undefined || req.body.end_date === undefined) {
+	// 	res.sendStatus(400);
+	// 	return;
+	// }
+
+	models.modules.create({
+		name: moduleName
+	}).then((result) => {
+		if (result === 0) {
+			res.status(400).send("not created");
+
+		}
+
+		let moduleID = result.id
+
+		for (const setting of req.body.setings) {
+			models.settingtypes.findOrCreate({
+				where: { typename: setting.type }
+			})
+		}
+
+		for (const setting of req.body.setings) {
+			let settingName = setting.name
+			let settingType = setting.type
+			let settingValue = setting.value
+
+			let settingEndpoint = setting.endpoint
+			let settingDescription = setting.description
+
+			models.settingtypes.findOrCreate({
+				where: { typename: setting.type }
+			}).then(_ => {
+				models.settings.create({
+					name: settingName,
+					type: settingType,
+					description: settingDescription,
+					endpoint: settingEndpoint,
+					value: settingValue
+				}).then((settingResult) => {
+					console.log(settingResult.id)
+					console.log(moduleID)
+					models.module_settings.create({
+						module_id: moduleID,
+						setting_id: settingResult.id
+					})
+					if(setting.options != null){
+						for (const option of setting.options) {
+							models.options.create({
+								setting_id: settingResult.id,
+								option_name: option
+							})
+						}
+					}
+				})
+			})			
+		}
+
+		res.sendStatus(201);
+		return;
+	}).catch(() => {
+
+		res.status(503).send();
+	});
+});
+
 // get routes
 
 app.get('/module/:id', (req, res) => {
 	let moduleID = req.params.id;
 
-	models.modules.findAll({
-		where: {id: moduleID},
-		attributes: ['name'],
+	models.modules.findOne({
+		//where: {id: moduleID},
+		id: moduleID,
+		attributes: ['id', 'name'],
 		include: [{
 			model: models.settings,
 			through: { attributes: [] },
@@ -61,23 +137,43 @@ app.get('/module/:id', (req, res) => {
 
 		res.status(503).send();
 	});
+});
 
-	// models.module_settings.findByPk(moduleID).then((module, err) => {
-	// 	if (err) {
-	// 		res.sendStatus(400);
-	// 		return;
-	// 	}
-	// 	if (!module) {
-	// 		res.status(400).send("no row by that id");
+app.get('/module/name/:name', (req, res) => {
+	let moduleName = req.params.name;
 
-	// 	}
-	// 	console.log(module.dataValues);
-	// 	res.send(module.dataValues);
-	// 	return;
+	console.log(moduleName)
 
-	// }).catch(err => {
-	// 	res.sendStatus(503);
-	// });
+	models.modules.findAll({
+		where: {name: moduleName},
+		//name: moduleName,
+		attributes: ['id', 'name'],
+		include: [{
+			model: models.settings,
+			through: { attributes: [] },
+			attributes: ['name', 'type', 'description', 'endpoint'],
+			include :[{
+				model: models.options,
+				attributes: ['option_name']
+			}],
+			required: true
+		}]
+	}).then((modules, err) => {
+		if (err) {
+			res.sendStatus(400);
+			return;
+		}
+		if (modules.length === 0) {
+			res.status(400).send("no rows");
+
+		}
+		res.send(modules);
+		return;
+
+	}).catch(() => {
+
+		res.status(503).send();
+	});
 });
 
 app.get('/module', (req, res) => {
@@ -85,7 +181,7 @@ app.get('/module', (req, res) => {
 	const query = `select * from ${moduleTable};`;
 
 	models.modules.findAll({
-		attributes: ['name'],
+		attributes: ['id', 'name'],
 		include: [{
 			model: models.settings,
 			through: { attributes: [] },
@@ -116,95 +212,96 @@ app.get('/module', (req, res) => {
 
 // update routes
 
-app.put('/module-description/:id', (req, res) => {
-	let moduleID = req.params.id;
-	let description = req.body.description;
+// app.put('/module-description/:id', (req, res) => {
+// 	let moduleID = req.params.id;
+// 	let description = req.body.description;
 
-	if (req.body.description === undefined) {
-		res.sendStatus(400);
-		return;
-	}
+// 	if (req.body.description === undefined) {
+// 		res.sendStatus(400);
+// 		return;
+// 	}
 
-	models.module.update({
-		description: description
-	}, {
-		where: {
-			id: moduleID
-		}
-	}).then((result) => {
-		console.log(result);
-		if (result === 0) {
-			res.status(400).send("no row by that id");
+// 	models.module.update({
+// 		description: description
+// 	}, {
+// 		where: {
+// 			id: moduleID
+// 		}
+// 	}).then((result) => {
+// 		console.log(result);
+// 		if (result === 0) {
+// 			res.status(400).send("no row by that id");
 
-		}
+// 		}
 
-		res.send("updated");
-		return;
-	}).catch(() => {
+// 		res.send("updated");
+// 		return;
+// 	}).catch(() => {
 
-		res.status(503).send();
-	});
-});
+// 		res.status(503).send();
+// 	});
+// });
 
-app.put('/module-begin/:id', (req, res) => {
-	let moduleID = req.params.id;
-	let begin_date = req.body.start_date;
+// app.put('/module-begin/:id', (req, res) => {
+// 	let moduleID = req.params.id;
+// 	let begin_date = req.body.start_date;
 
-	if (req.body.start_date === undefined) {
-		res.sendStatus(400);
-		return;
-	}
+// 	if (req.body.start_date === undefined) {
+// 		res.sendStatus(400);
+// 		return;
+// 	}
 
-	models.module.update({
-		begin_date: begin_date
-	}, {
-		where: {
-			id: moduleID
-		}
-	}).then((result) => {
-		console.log(result);
-		if (result === 0) {
-			res.status(400).send("no row by that id");
+// 	models.module.update({
+// 		begin_date: begin_date
+// 	}, {
+// 		where: {
+// 			id: moduleID
+// 		}
+// 	}).then((result) => {
+// 		console.log(result);
+// 		if (result === 0) {
+// 			res.status(400).send("no row by that id");
 
-		}
+// 		}
 
-		res.send("updated");
-		return;
-	}).catch(() => {
+// 		res.send("updated");
+// 		return;
+// 	}).catch(() => {
 
-		res.status(503).send();
-	});
-});
+// 		res.status(503).send();
+// 	});
+// });
 
-app.put('/module-end/:id', (req, res) => {
-	let moduleID = req.params.id;
-	let end_date = req.body.end_date;
+// app.put('/module-end/:id', (req, res) => {
+// 	let moduleID = req.params.id;
+// 	let end_date = req.body.end_date;
 
-	if (req.body.end_date === undefined) {
-		res.sendStatus(400);
-		return;
-	}
+// 	if (req.body.end_date === undefined) {
+// 		res.sendStatus(400);
+// 		return;
+// 	}
 
-	models.module.update({
-		end_date: end_date
-	}, {
-		where: {
-			id: moduleID
-		}
-	}).then((result) => {
-		console.log(result);
-		if (result === 0) {
-			res.status(400).send("no row by that id");
+// 	models.module.update({
+// 		end_date: end_date
+// 	}, {
+// 		where: {
+// 			id: moduleID
+// 		}
+// 	}).then((result) => {
+// 		console.log(result);
+// 		if (result === 0) {
+// 			res.status(400).send("no row by that id");
 
-		}
+// 		}
 
-		res.send("updated");
-		return;
-	}).catch(() => {
+// 		res.send("updated");
+// 		return;
+// 	}).catch(() => {
 
-		res.status(503).send();
-	});
-});
+// 		res.status(503).send();
+// 	});
+// });
+
 app.put('/module-all/:id', (req, res) => {
 	let moduleID = req.params.id;
 	let description = req.body.description;
@@ -232,38 +329,6 @@ app.put('/module-all/:id', (req, res) => {
 		}
 
 		res.send("updated");
-		return;
-	}).catch(() => {
-
-		res.status(503).send();
-	});
-
-
-});
-// post routes
-
-app.post('/module', (req, res) => {
-	let description = req.body.description;
-	let begin_date = req.body.start_date;
-	let end_date = req.body.end_date;
-
-	if (req.body.description === undefined || req.body.start_date === undefined || req.body.end_date === undefined) {
-		res.sendStatus(400);
-		return;
-	}
-
-	models.module.create({
-		description: description,
-		begin_date: begin_date,
-		end_date: end_date,
-	}).then((result) => {
-		console.log(result);
-		if (result === 0) {
-			res.status(400).send("not created");
-
-		}
-
-		res.sendStatus(201);
 		return;
 	}).catch(() => {
 

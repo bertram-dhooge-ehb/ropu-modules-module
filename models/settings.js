@@ -2,6 +2,7 @@
 module.exports = (sequelize, DataTypes) => {
   const settings = sequelize.define('settings', {
     id: {
+      autoIncrement: true,
       primaryKey: true,
       type: DataTypes.NUMBER
     },
