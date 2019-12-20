@@ -14,7 +14,8 @@ dotenv.config();
 const express = require('express')
 const app = express();
 const bodyParser = require('body-parser')
-const port = process.env.PORT;
+//const port = process.env.PORT;
+const port = 80;
 const moduleTable = "module_settings";
 let Sequelize = require("sequelize"); 
 let models = require("./models");
